@@ -1,0 +1,6 @@
+{
+  "name": "Filoi Fantasy League Dashboard",
+  "description": "Premier League Fantasy Mini-League Dashboard with 16 verified paid managers, ₦80,000 prize pool allocations, live gameweek standings, and block race tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
