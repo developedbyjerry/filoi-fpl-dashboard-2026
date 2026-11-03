@@ -255,27 +255,41 @@ export function PrizePoolTab({ stats, managers, onOpenRules }: PrizePoolTabProps
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {BLOCKS.map((block) => {
-            const isActive = stats.currentGameweek >= block.startGw && stats.currentGameweek <= block.endGw;
-            const isFinished = stats.currentGameweek > block.endGw;
+            const isBlock1 = block.id === 1;
+            const isBlock2 = block.id === 2;
+            const isFinished = block.status === 'completed' || isBlock1;
+            const isActive = isBlock2 || (stats.currentGameweek >= block.startGw && stats.currentGameweek <= block.endGw && !isFinished);
 
             return (
               <div
                 key={block.id}
-                className={`p-3.5 rounded-lg border transition-all ${
-                  isActive
-                    ? 'bg-emerald-950/20 border-emerald-500/50 shadow-sm'
+                className={`p-3.5 rounded-xl border transition-all ${
+                  isBlock1
+                    ? 'bg-gradient-to-br from-amber-950/30 to-[var(--surface-2)] border-amber-500/40 shadow-sm'
+                    : isBlock2
+                    ? 'bg-gradient-to-br from-emerald-950/30 to-[var(--surface-2)] border-emerald-500/50 shadow-sm'
                     : 'bg-[var(--surface-2)]/50 border-[var(--border-subtle)]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-xs text-[var(--text-main)]">{block.name}</span>
-                  {isActive ? (
+                  <span className="font-bold text-xs text-[var(--text-main)] flex items-center gap-1.5">
+                    {block.name}
+                    {isBlock1 && <Icon name="Crown" size={13} className="text-amber-400" />}
+                  </span>
+                  {isBlock1 ? (
+                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
+                      Won &amp; Banked
+                    </span>
+                  ) : isBlock2 ? (
+                    <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      FRESH RACE
+                    </span>
+                  ) : isActive ? (
                     <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                       ACTIVE
                     </span>
-                  ) : isFinished ? (
-                    <span className="text-[10px] font-medium text-slate-400">Done</span>
                   ) : (
                     <span className="text-[10px] font-medium text-slate-500">Scheduled</span>
                   )}
@@ -283,12 +297,33 @@ export function PrizePoolTab({ stats, managers, onOpenRules }: PrizePoolTabProps
                 <div className="text-xs text-[var(--text-muted)]">
                   Gameweeks {block.startGw} to {block.endGw}
                 </div>
-                <div className="text-base font-bold font-mono text-emerald-400 mt-2">
+                <div className={`text-base font-bold font-mono mt-1.5 ${isBlock1 ? 'text-amber-400' : 'text-emerald-400'}`}>
                   ₦4,000.00
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Paid immediately following GW {block.endGw} deadline verification.
-                </p>
+                
+                {isBlock1 ? (
+                  <div className="mt-2 pt-2 border-t border-amber-500/20 text-[11px]">
+                    <span className="text-xs font-semibold text-amber-200 block truncate">
+                      Ayodele Balogun (Balogzee)
+                    </span>
+                    <span className="text-[10px] text-amber-300/80 font-mono">
+                      607 net pts · ₦4,000 Awarded ✅
+                    </span>
+                  </div>
+                ) : isBlock2 ? (
+                  <div className="mt-2 pt-2 border-t border-emerald-500/20 text-[11px]">
+                    <span className="text-emerald-300 font-semibold block text-[10px]">
+                      All 16 teams reset to 0 pts
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Fresh sprint begins GW 10 (Nov 6)
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-2 pt-2 border-t border-[var(--border-subtle)]/60">
+                    Paid following GW {block.endGw} deadline verification.
+                  </p>
+                )}
               </div>
             );
           })}

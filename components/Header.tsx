@@ -63,15 +63,27 @@ export function Header({
 
           {/* Quick Info & Action Controls */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Auto-Sync Live Pill */}
+            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--surface-2)] text-xs border border-emerald-500/30">
+              <span className={`w-2 h-2 rounded-full ${isRefreshing ? 'bg-amber-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`}></span>
+              <span className="font-medium text-emerald-300">
+                {isRefreshing ? 'Auto-syncing...' : 'Live auto-sync'}
+              </span>
+              <span className="text-[10px] text-[var(--text-muted)]">
+                · {stats.lastSyncedAt ? 'Synced' : 'Active'}
+              </span>
+            </div>
+
             {/* Live Indicator on Mobile */}
-            <span className="inline-flex sm:hidden items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span className="inline-flex sm:hidden items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               GW {stats.currentGameweek}
             </span>
 
-            {/* FPL Connection Mode Pill */}
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--surface-2)] text-xs text-[var(--text-muted)] border border-[var(--border-subtle)]">
-              <span className={`w-2 h-2 rounded-full ${isLiveFpl ? 'bg-emerald-400' : 'bg-purple-400'}`}></span>
-              <span>{isLiveFpl ? 'FPL Live Sync' : 'Verified Cache'}</span>
+            {/* Block 2 Active Pill */}
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/40 text-xs text-emerald-300 border border-emerald-500/30">
+              <Icon name="Zap" size={13} className="text-emerald-400" />
+              <span>Block 2 Fresh Start</span>
             </div>
 
             {/* Payment Rules Button */}
@@ -99,8 +111,8 @@ export function Header({
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              title="Refresh gameweek scores"
-              aria-label="Refresh gameweek scores"
+              title="Force sync live FPL scores"
+              aria-label="Force sync live FPL scores"
               className="p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-emerald-500/40 transition-colors disabled:opacity-50"
             >
               <Icon

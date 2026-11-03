@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Header } from '@/components/Header';
 import { QuickStats } from '@/components/QuickStats';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -22,12 +22,45 @@ import {
 import { Manager, LeagueStats } from '@/lib/types';
 
 export default function HomePage() {
-  const [stats, setStats] = useState<LeagueStats>(INITIAL_LEAGUE_STATS);
-  const [managers, setManagers] = useState<Manager[]>(INITIAL_MANAGERS);
+  const [stats, setStats] = useState<LeagueStats>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedStats = localStorage.getItem('filoi_league_stats_v3');
+        if (cachedStats) {
+          const parsed = JSON.parse(cachedStats);
+          return {
+            ...INITIAL_LEAGUE_STATS,
+            ...parsed,
+          };
+        }
+      } catch {
+        // ignore localStorage errors
+      }
+    }
+    return INITIAL_LEAGUE_STATS;
+  });
+
+  const [managers, setManagers] = useState<Manager[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('filoi_synced_managers_v3');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore localStorage errors
+      }
+    }
+    return INITIAL_MANAGERS;
+  });
+
   const [activeTab, setActiveTab] = useState<string>('standings');
   const [selectedManager, setSelectedManager] = useState<Manager | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLiveFpl, setIsLiveFpl] = useState(false);
+  const [isLiveFpl, setIsLiveFpl] = useState(true);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -37,6 +70,17 @@ export default function HomePage() {
     }
     return false;
   });
+
+  const notificationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const showNotification = useCallback((msg: string) => {
+    if (notificationTimerRef.current) {
+      clearTimeout(notificationTimerRef.current);
+    }
+    setNotification(msg);
+    notificationTimerRef.current = setTimeout(() => {
+      setNotification((curr) => (curr === msg ? null : curr));
+    }, 3500);
+  }, []);
 
   const handleToggleAdmin = (status: boolean) => {
     setIsAdmin(status);
@@ -51,67 +95,56 @@ export default function HomePage() {
     }
   };
 
-  // Current active block
+  // Current active block: Block 1 is completed with Ayodele Balogun winning; Block 2 is the active fresh race
   const currentBlock = useMemo(() => {
+    if (stats.activeBlockId === 2 || stats.currentGameweek >= 9) {
+      return BLOCKS.find((b) => b.id === 2) || BLOCKS[1] || BLOCKS[0];
+    }
     return (
       BLOCKS.find(
         (b) => stats.currentGameweek >= b.startGw && stats.currentGameweek <= b.endGw
       ) || BLOCKS[0]
     );
-  }, [stats.currentGameweek]);
+  }, [stats.currentGameweek, stats.activeBlockId]);
 
-  // Block standings for current block
+  // Block standings for current block (calculated dynamically from managers' gwScores)
   const blockStandings = useMemo(() => {
     return calculateBlockStandings(managers, currentBlock);
   }, [managers, currentBlock]);
 
-  const showNotification = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => {
-      setNotification((curr) => (curr === msg ? null : curr));
-    }, 3500);
-  };
-
-  // Refresh handler
+  // Manual Refresh Handler with visual spinner and user feedback
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch(`/api/fpl/league?leagueId=${stats.fplLeagueId}`);
+      const res = await fetch(`/api/fpl/league?leagueId=${stats.fplLeagueId}`, {
+        cache: 'no-store',
+      });
       const json = await res.json();
+
       if (json.success && json.standings && json.standings.length > 0) {
-        const standingsMap = new Map<number, any>();
-        json.standings.forEach((s: any) => {
-          standingsMap.set(s.entry, s);
-        });
+        setManagers(json.standings);
+        setIsLiveFpl(!json.isFallback);
+        setStats((prev) => ({
+          ...prev,
+          currentGameweek: json.currentGameweek || prev.currentGameweek,
+          activeBlockId: json.activeBlockId || 2,
+          lastSyncedAt: json.timestamp || new Date().toISOString(),
+          isAutoSyncing: true,
+        }));
 
-        const updated = managers.map((m) => {
-          const live = standingsMap.get(m.entry);
-          if (!live) return m;
+        try {
+          localStorage.setItem('filoi_synced_managers_v3', JSON.stringify(json.standings));
+          localStorage.setItem(
+            'filoi_league_stats_v3',
+            JSON.stringify({
+              currentGameweek: json.currentGameweek,
+              activeBlockId: json.activeBlockId || 2,
+              lastSyncedAt: json.timestamp,
+            })
+          );
+        } catch {}
 
-          return {
-            ...m,
-            totalPoints: live.total,
-            currentGwPoints: live.event_total,
-          };
-        });
-
-        updated.sort((a, b) => b.totalPoints - a.totalPoints);
-        const reRanked = updated.map((m, idx) => {
-          const newRank = idx + 1;
-          const oldRank = m.overallRank;
-          const delta = Math.abs(oldRank - newRank);
-          return {
-            ...m,
-            lastRank: oldRank,
-            overallRank: newRank,
-            rankDelta: delta,
-            overallRankMovement:
-              newRank < oldRank ? ('up' as const) : newRank > oldRank ? ('down' as const) : ('same' as const),
-          };
-        });
-
-        setManagers(reRanked);
-        showNotification('Official FPL standings for League 398938 synchronized successfully!');
+        showNotification('Official FPL standings synchronized successfully!');
       } else {
         showNotification('Standings refreshed with verified roster cache.');
       }
@@ -122,7 +155,76 @@ export default function HomePage() {
     }
   };
 
-  // Simulate Next Gameweek (e.g., advancing to GW 9 - Block 1 Climax!)
+  // Automated Zero-Click Sync Engine:
+  // 1. Silent sync on page load
+  // 2. Continuous 60s background polling
+  // 3. Tab visibility and window focus re-validation
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const silentAutoSync = async () => {
+      try {
+        const res = await fetch(`/api/fpl/league?leagueId=${stats.fplLeagueId}`, {
+          cache: 'no-store',
+        });
+        const json = await res.json();
+
+        if (isSubscribed && json.success && json.standings && json.standings.length > 0) {
+          setManagers(json.standings);
+          setIsLiveFpl(!json.isFallback);
+          setStats((prev) => ({
+            ...prev,
+            currentGameweek: json.currentGameweek || prev.currentGameweek,
+            activeBlockId: json.activeBlockId || 2,
+            lastSyncedAt: json.timestamp || new Date().toISOString(),
+            isAutoSyncing: true,
+          }));
+
+          try {
+            localStorage.setItem('filoi_synced_managers_v3', JSON.stringify(json.standings));
+            localStorage.setItem(
+              'filoi_league_stats_v3',
+              JSON.stringify({
+                currentGameweek: json.currentGameweek,
+                activeBlockId: json.activeBlockId || 2,
+                lastSyncedAt: json.timestamp,
+              })
+            );
+          } catch {}
+        }
+      } catch {
+        // Silent background fallback
+      }
+    };
+
+    // Run silent auto-sync
+    silentAutoSync();
+
+    // 60-second periodic background polling
+    const intervalId = setInterval(silentAutoSync, 60000);
+
+    // Auto-update when user returns to window or switches tab
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        silentAutoSync();
+      }
+    };
+    const handleFocus = () => {
+      silentAutoSync();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [stats.fplLeagueId]);
+
+  // Simulate Next Gameweek (for commissioner testing)
   const handleSimulateNextGw = () => {
     if (stats.currentGameweek >= 38) {
       showNotification('Season complete! All 38 gameweeks have finished.');
@@ -131,7 +233,6 @@ export default function HomePage() {
 
     const nextGw = stats.currentGameweek + 1;
     const updated = managers.map((m) => {
-      // Deterministic realistic points for next GW (between 45 and 85)
       const pts = Math.floor(45 + ((m.id * 17 + nextGw * 23) % 41));
       const hits = (m.id + nextGw) % 5 === 0 ? 4 : 0;
       const net = pts - hits;
@@ -157,7 +258,6 @@ export default function HomePage() {
       };
     });
 
-    // Re-rank
     updated.sort((a, b) => b.totalPoints - a.totalPoints);
     const reRanked = updated.map((m, idx) => {
       const newRank = idx + 1;
@@ -177,20 +277,27 @@ export default function HomePage() {
     setStats((prev) => ({
       ...prev,
       currentGameweek: nextGw,
+      activeBlockId: nextGw >= 10 ? 2 : 1,
     }));
 
-    if (nextGw === 9) {
-      showNotification(`🎉 Gameweek 9 Concluded! Block 1 Winner Crowned (₦4,000 Bounty)!`);
+    if (nextGw === 10) {
+      showNotification(`⚡ Gameweek 10 Commenced! Block 2 Fresh Race is underway!`);
     } else {
       showNotification(`Simulated Gameweek ${nextGw}! Standings updated.`);
     }
   };
 
-  // Reset Data to Initial
+  // Reset Data to Initial Verified Baseline
   const handleResetData = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('filoi_synced_managers_v3');
+        localStorage.removeItem('filoi_league_stats_v3');
+      } catch {}
+    }
     setManagers(INITIAL_MANAGERS);
     setStats(INITIAL_LEAGUE_STATS);
-    showNotification('Reset league data to default GW 8 baseline.');
+    showNotification('Reset league data to default GW 9 baseline.');
   };
 
   const handleUpdateLeagueId = (newId: number) => {

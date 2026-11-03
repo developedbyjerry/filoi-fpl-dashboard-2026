@@ -74,7 +74,7 @@ export function QuickStats({ stats, currentBlock, onSelectTab }: QuickStatsProps
           {currentBlock.prizeFormatted}
         </div>
         <p className="text-[11px] text-[var(--text-muted)] mt-1 flex items-center justify-between">
-          <span>GW {currentBlock.startGw}–{currentBlock.endGw}</span>
+          <span>GW {currentBlock.startGw}–{currentBlock.endGw} {currentBlock.id === 2 ? '· Fresh Start' : ''}</span>
           <span className="text-emerald-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
             Leaderboard
             <Icon name="ChevronRight" size={12} />

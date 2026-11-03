@@ -40,6 +40,11 @@ export interface BlockConfig {
   prizeAmount: number;
   prizeFormatted: string;
   status: 'active' | 'upcoming' | 'completed';
+  winnerName?: string;
+  winnerTeam?: string;
+  winnerPoints?: number;
+  winnerEntry?: number;
+  bountyAwarded?: string;
 }
 
 export interface LeagueStats {
@@ -54,6 +59,8 @@ export interface LeagueStats {
   registrationDeadline: string;
   currentGameweek: number;
   activeBlockId: number;
+  lastSyncedAt?: string;
+  isAutoSyncing?: boolean;
   payouts: {
     firstPlace: number;
     secondPlace: number;
